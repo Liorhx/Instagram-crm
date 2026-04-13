@@ -16,13 +16,13 @@ It enables businesses to handle the full lifecycle from **lead → follow-up →
 https://instagram-crm.onrender.com
 
 <p align="center">
-  <img src="./Screenshot1.png" width="800">
-  <img src="./Screenshot2.png" width="800">
-  <img src="./Screenshot3.png" width="800">
-  <img src="./Screenshot4.png" width="800">
-  <img src="./Screenshot5.png" width="800">
-  <img src="./Screenshot6.png" width="800">
-  <img src="./Screenshot7.png" width="800">
+    <img src="./public/Screenshot3.png" width="800">
+  <img src="./public/Screenshot1.png" width="800">
+  <img src="./public/Screenshot2.png" width="800">
+  <img src="./public/Screenshot4.png" width="800">
+  <img src="./public/Screenshot5.png" width="800">
+  <img src="./public/Screenshot6.png" width="800">
+  <img src="./public/Screenshot7.png" width="800">
 </p>
 
 ---

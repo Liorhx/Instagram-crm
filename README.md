@@ -5,9 +5,9 @@ A CRM platform to manage Instagram leads, automate workflows, and streamline sal
 </p>
 
 <p align="center">
+    <img src="./public/Screenshot3.png" width="800">
   <img src="./public/Screenshot1.png" width="800">
   <img src="./public/Screenshot2.png" width="800">
-  <img src="./public/Screenshot3.png" width="800">
   <img src="./public/Screenshot4.png" width="800">
   <img src="./public/Screenshot5.png" width="800">
   <img src="./public/Screenshot6.png" width="800">

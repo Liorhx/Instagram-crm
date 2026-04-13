@@ -1,20 +1,94 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+<h1 align="center">🚀 InstaCRM – Smart CRM & Workflow System</h1>
 
-# Run and deploy your AI Studio app
+<p align="center">
+A CRM platform to manage Instagram leads, automate workflows, and streamline sales processes.
+</p>
 
-This contains everything you need to run your app locally.
+<p align="center">
+  <img src="./screenshots1.png" width="800">
+  <img src="./screenshots2.png" width="800">
+  <img src="./screenshots3.png" width="800">
+  <img src="./screenshots4.png" width="800">
+  <img src="./screenshots5.png" width="800">
+  <img src="./screenshots6.png" width="800">
+  <img src="./screenshots7.png" width="800">
+</p>
 
-View your app in AI Studio: https://ai.studio/apps/a4af3ab2-7275-45b2-9cfd-60f861df2e6b
+---
 
-## Run Locally
+## 🧠 Overview
 
-**Prerequisites:**  Node.js
+**InstaCRM** is a full-stack CRM platform designed to manage leads, track customer interactions, and optimize sales pipelines.
 
+It enables businesses to handle the full lifecycle from **lead → follow-up → conversion** with automated workflows and real-time tracking.
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+---
+
+## ✨ Features
+
+- Lead management and sales pipeline tracking
+- Automated follow-ups with "Next Due" date calculation
+- Status-based filtering (New, Contacted, Converted)
+- Bulk import system for high-volume data
+- Template engine for quick outreach
+- Real-time task indicators (Due Today, Overdue)
+- Fully responsive dashboard
+
+---
+
+## 🛠 Tech Stack
+
+**Frontend:** React.js, Tailwind CSS  
+**Backend:** Node.js, Express.js ,Typescript
+**Database:** MongoDB  
+**Authentication:** JWT  
+**Tools:** Git, GitHub, Postman, Vite
+
+---
+
+## 🏗 Architecture
+
+- Built using **MERN stack** with modular backend structure
+- Designed **REST APIs** for lead management and workflows
+- Implemented **multi-step workflow logic** for customer lifecycle
+- Optimized performance with efficient API and database handling
+
+---
+
+## 📁 Project Structure
+
+root/
+├── src/ # Frontend source code
+├── server.ts # Backend entry point
+├── index.html # Main HTML file
+├── components.json # UI configuration
+├── package.json # Dependencies
+├── tsconfig.json # TypeScript config
+└── vite.config.ts # Vite config
+
+---
+
+## ⚙️ Setup
+
+```bash
+git clone https://github.com/Liorhx/instacrm.git
+npm install
+npm install --save-dev typescript @types/react @types/react-dom
+npm run dev
+```
+
+# MongoDB Connection String
+
+MONGODB_URI=your_mongodb_connection
+
+# JWT Secret for authentication
+
+JWT_SECRET=your_secret_key
+
+# SMTP Configuration for Emails (e.g., Gmail, SendGrid, Mailtrap)
+
+SMTP_HOST="smtp.example.com"
+SMTP_PORT=587
+SMTP_USER="your_email@example.com"
+SMTP_PASS="your_password_or_app_token"
+SMTP_FROM="InstaSmart CRM <noreply@example.com>"

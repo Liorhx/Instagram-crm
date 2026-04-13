@@ -3,6 +3,17 @@
 <p align="center">
 A CRM platform to manage Instagram leads, automate workflows, and streamline sales processes.
 </p>
+## 🧠 Overview
+
+**InstaCRM** is a full-stack CRM platform designed to manage leads, track customer interactions, and optimize sales pipelines.
+
+It enables businesses to handle the full lifecycle from **lead → follow-up → conversion** with automated workflows and real-time tracking.
+
+---
+
+## Live Link
+
+https://instagram-crm.onrender.com
 
 <p align="center">
   <img src="./Screenshot1.png" width="800">
@@ -13,14 +24,6 @@ A CRM platform to manage Instagram leads, automate workflows, and streamline sal
   <img src="./Screenshot6.png" width="800">
   <img src="./Screenshot7.png" width="800">
 </p>
-
----
-
-## 🧠 Overview
-
-**InstaCRM** is a full-stack CRM platform designed to manage leads, track customer interactions, and optimize sales pipelines.
-
-It enables businesses to handle the full lifecycle from **lead → follow-up → conversion** with automated workflows and real-time tracking.
 
 ---
 

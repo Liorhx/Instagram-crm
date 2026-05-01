@@ -19,21 +19,20 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.udse(compression()); // Optimize response sizes
+// Security & Performance
+app.use(compression()); // Optimize response sizes
 const allowedOrigins = [
   process.env.VITE_FRONTEND_URL,
   process.env.APP_URL,
   "http://localhost:3000",
   "http://localhost:5173",
-  "http://localhost:5000",
+  "http://localhost:5000"
 ].filter(Boolean);
 
-app.use(
-  cors({
-    origin: allowedOrigins.length > 0 ? allowedOrigins : true,
-    credentials: true,
-  }),
-);
+app.use(cors({
+  origin: allowedOrigins.length > 0 ? allowedOrigins : true,
+  credentials: true
+}));
 app.use(express.json());
 app.use(cookieParser());
 
@@ -43,8 +42,7 @@ app.get("/api/health", (req, res) => {
 });
 
 // Configuration
-const MONGODB_URI =
-  process.env.MONGODB_URI || "mongodb://localhost:27017/swiftcourse";
+const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/swiftcourse";
 const JWT_SECRET = process.env.JWT_SECRET || "fallback_secret_123";
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -54,9 +52,7 @@ const getRazorpay = () => {
     const key_id = process.env.VITE_RAZORPAY_KEY_ID;
     const key_secret = process.env.RAZORPAY_KEY_SECRET;
     if (!key_id || !key_secret) {
-      throw new Error(
-        "Razorpay credentials (VITE_RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET) not configured.",
-      );
+      throw new Error("Razorpay credentials (VITE_RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET) not configured.");
     }
     razorpayClient = new Razorpay({ key_id, key_secret });
   }
@@ -99,9 +95,7 @@ const authenticateToken = (req, res, next) => {
   const token = req.cookies.token;
   if (!token) {
     console.log("Authentication failed: No token found in cookies");
-    return res.status(401).json({
-      message: "Session expired or access denied. Please login again.",
-    });
+    return res.status(401).json({ message: "Session expired or access denied. Please login again." });
   }
 
   try {
@@ -110,9 +104,7 @@ const authenticateToken = (req, res, next) => {
     next();
   } catch (err) {
     console.log("Authentication failed: Invalid token", err);
-    res
-      .status(400)
-      .json({ message: "Invalid session token. Please login again." });
+    res.status(400).json({ message: "Invalid session token. Please login again." });
   }
 };
 
@@ -126,24 +118,18 @@ app.post("/api/auth/signup", async (req, res) => {
 
     // Server-side validation
     if (!name || name.length < 3 || !/^[a-zA-Z\s]+$/.test(name)) {
-      return res.status(400).json({
-        message: "Name must be at least 3 characters and contain only letters",
-      });
+      return res.status(400).json({ message: "Name must be at least 3 characters and contain only letters" });
     }
     if (!email || !/\S+@\S+\.\S+/.test(email)) {
       return res.status(400).json({ message: "Enter a valid email address" });
     }
     if (!password || password.length < 8) {
-      return res
-        .status(400)
-        .json({ message: "Password must be at least 8 characters long" });
+      return res.status(400).json({ message: "Password must be at least 8 characters long" });
     }
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res
-        .status(400)
-        .json({ message: "An account with this email already exists." });
+      return res.status(400).json({ message: "An account with this email already exists." });
     }
 
     // Hash password
@@ -197,17 +183,15 @@ app.post("/api/auth/signup", async (req, res) => {
       }
     }
 
-    res.status(201).json({
-      message: process.env.RESEND_API_KEY
-        ? "User created. Check your email for verification."
+    res.status(201).json({ 
+      message: process.env.RESEND_API_KEY 
+        ? "User created. Check your email for verification." 
         : "User created and auto-verified for demo.",
-      user: { name: user.name, email: user.email },
+      user: { name: user.name, email: user.email }
     });
   } catch (err) {
     console.error("SIGNUP ERROR:", err);
-    res
-      .status(500)
-      .json({ message: "Registration failed. Internal logic error." });
+    res.status(500).json({ message: "Registration failed. Internal logic error." });
   }
 });
 
@@ -217,20 +201,12 @@ app.post("/api/auth/login", async (req, res) => {
     const { email, password } = req.body;
 
     const user = await User.findOne({ email });
-    if (!user)
-      return res
-        .status(400)
-        .json({ message: "Identity not found in database." });
+    if (!user) return res.status(400).json({ message: "Identity not found in database." });
 
     const validPass = await bcrypt.compare(password, user.password);
-    if (!validPass)
-      return res.status(400).json({ message: "Invalid credentials." });
+    if (!validPass) return res.status(400).json({ message: "Invalid credentials." });
 
-    if (!user.is_verified)
-      return res.status(400).json({
-        message:
-          "Almost there! Verify your email to unlock full account access.",
-      });
+    if (!user.is_verified) return res.status(400).json({ message: "Almost there! Verify your email to unlock full account access." });
 
     const token = jwt.sign({ _id: user._id, email: user.email }, JWT_SECRET);
 
@@ -239,13 +215,10 @@ app.post("/api/auth/login", async (req, res) => {
       secure: true,
       maxAge: 3600000 * 24, // 24h
       sameSite: "none",
-      path: "/",
+      path: "/"
     });
 
-    res.json({
-      message: "Logged in",
-      user: { name: user.name, email: user.email, has_access: user.has_access },
-    });
+    res.json({ message: "Logged in", user: { name: user.name, email: user.email, has_access: user.has_access } });
   } catch (err) {
     console.error("LOGIN ERROR:", err);
     res.status(500).json({ message: "Login sequence failed." });
@@ -262,19 +235,15 @@ app.post("/api/auth/logout", (req, res) => {
 app.get("/api/auth/verify", async (req, res) => {
   try {
     const token = req.query.token;
-    if (!token)
-      return res
-        .status(400)
-        .json({ message: "Identification protocol missing. Access denied." });
-
+    if (!token) return res.status(400).json({ message: "Identification protocol missing. Access denied." });
+    
     // Check if token exists in DB
     const user = await User.findOne({ verification_token: token });
-
+    
     if (!user) {
-      return res.json({
-        message:
-          "Identity authenticated or already active. Redirecting to portal...",
-        alreadyVerified: true,
+      return res.json({ 
+        message: "Identity authenticated or already active. Redirecting to portal...",
+        alreadyVerified: true 
       });
     }
 
@@ -290,13 +259,13 @@ app.get("/api/auth/verify", async (req, res) => {
       secure: true,
       maxAge: 3600000 * 24, // 24h
       sameSite: "none",
-      path: "/",
+      path: "/"
     });
 
-    res.json({
-      message: "Email verified successfully. Neural link active.",
+    res.json({ 
+      message: "Email verified successfully. Neural link active.", 
       token: jwtToken,
-      user: { name: user.name, email: user.email, has_access: user.has_access },
+      user: { name: user.name, email: user.email, has_access: user.has_access }
     });
   } catch (err) {
     res.status(500).json({ message: "Verification sequence corrupted." });
@@ -313,9 +282,7 @@ app.get("/api/auth/me", authenticateToken, async (req, res) => {
     }
     res.json(user);
   } catch (err) {
-    res
-      .status(500)
-      .json({ message: "Internal server error during identity check" });
+    res.status(500).json({ message: "Internal server error during identity check" });
   }
 });
 
@@ -338,25 +305,22 @@ app.post("/api/payments/create-order", authenticateToken, async (req, res) => {
     console.error("Order Creation Error Details:", err);
     // If it's a 401/403 from Razorpay, it might mean bad credentials
     const errorMessage = err.message || "Failed to initiate payment protocol.";
-    res.status(err.statusCode || 500).json({
+    res.status(err.statusCode || 500).json({ 
       message: errorMessage,
-      details: err.error ? err.error.description : "Gateway rejected request.",
+      details: err.error ? err.error.description : "Gateway rejected request."
     });
   }
 });
 
 app.post("/api/payments/verify", authenticateToken, async (req, res) => {
   try {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } =
-      req.body;
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
 
     const body = razorpay_order_id + "|" + razorpay_payment_id;
     const key_secret = process.env.RAZORPAY_KEY_SECRET;
-
+    
     if (!key_secret) {
-      return res
-        .status(500)
-        .json({ message: "Payment verification failed: secret missing." });
+      return res.status(500).json({ message: "Payment verification failed: secret missing." });
     }
 
     const expectedSignature = crypto
@@ -366,10 +330,7 @@ app.post("/api/payments/verify", authenticateToken, async (req, res) => {
 
     if (expectedSignature === razorpay_signature) {
       await User.findByIdAndUpdate(req.user._id, { has_access: true });
-      res.json({
-        success: true,
-        message: "Payment verified and access granted",
-      });
+      res.json({ success: true, message: "Payment verified and access granted" });
     } else {
       res.status(400).json({ success: false, message: "Invalid signature" });
     }
@@ -385,10 +346,7 @@ app.post("/api/auth/forgot-password", async (req, res) => {
     const user = await User.findOne({ email });
     if (!user) {
       // Don't reveal if user exists or not for security
-      return res.json({
-        message:
-          "If an account exists with that email, a reset link has been sent.",
-      });
+      return res.json({ message: "If an account exists with that email, a reset link has been sent." });
     }
 
     const resetToken = crypto.randomBytes(32).toString("hex");
@@ -418,10 +376,7 @@ app.post("/api/auth/forgot-password", async (req, res) => {
       console.log("No RESEND_API_KEY. Reset link:", resetLink);
     }
 
-    res.json({
-      message:
-        "If an account exists with that email, a reset link has been sent.",
-    });
+    res.json({ message: "If an account exists with that email, a reset link has been sent." });
   } catch (err) {
     res.status(500).json({ message: "Reset request failed." });
   }
@@ -432,26 +387,18 @@ app.post("/api/auth/reset-password", async (req, res) => {
   try {
     const { token, password } = req.body;
     if (!token || !password || password.length < 8) {
-      return res
-        .status(400)
-        .json({ message: "Invalid request or weak password." });
+      return res.status(400).json({ message: "Invalid request or weak password." });
     }
 
     const user = await User.findOne({ reset_token: token });
-    if (!user)
-      return res
-        .status(400)
-        .json({ message: "Invalid or expired reset token." });
+    if (!user) return res.status(400).json({ message: "Invalid or expired reset token." });
 
     const salt = await bcrypt.genSalt(10);
     user.password = await bcrypt.hash(password, salt);
     user.reset_token = undefined;
     await user.save();
 
-    res.json({
-      message:
-        "Password updated successfully. Please login with your new credentials.",
-    });
+    res.json({ message: "Password updated successfully. Please login with your new credentials." });
   } catch (err) {
     res.status(500).json({ message: "Password reset sequence corrupted." });
   }
@@ -463,9 +410,8 @@ app.use((err, req, res, next) => {
   const status = err.status || err.statusCode || 500;
   res.status(status).json({
     status: "error",
-    message:
-      err.message || "An unexpected error occurred internal to the system.",
-    ...(process.env.NODE_ENV !== "production" && { stack: err.stack }),
+    message: err.message || "An unexpected error occurred internal to the system.",
+    ...(process.env.NODE_ENV !== "production" && { stack: err.stack })
   });
 });
 

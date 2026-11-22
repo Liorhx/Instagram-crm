@@ -1,14 +1,18 @@
 import axios from "axios";
 
-// Automatically uses VITE_API_URL if configured for Vercel -> Render deployment.
-// Falls back to relative "/api" for local development with Vite proxy or unified server.
-const rawApiUrl = import.meta.env.VITE_API_URL || "";
-const cleanBaseUrl = rawApiUrl.replace(/\/+$/, "");
+// Dynamic API resolution:
+// - In development: uses VITE_API_URL (http://localhost:5000) or falls back to relative "/api"
+// - In production (Vercel): uses VITE_API_URL (e.g. https://your-backend.onrender.com)
+const rawApiUrl =
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.DEV ? "http://localhost:5000" : "");
+
+const cleanBaseUrl = (rawApiUrl || "").replace(/\/+$/, "");
 const baseURL = cleanBaseUrl ? `${cleanBaseUrl}/api` : "/api";
 
 const api = axios.create({
   baseURL,
-  timeout: 20000,
+  timeout: 25000,
 });
 
 api.interceptors.request.use((config) => {

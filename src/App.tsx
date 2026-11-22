@@ -34,8 +34,8 @@ import {
   templateService,
   logService,
   authService,
+  systemService,
 } from "./services/api";
-import axios from "axios";
 
 export default function App() {
   const [user, setUser] = useState<any>(null);
@@ -74,8 +74,8 @@ export default function App() {
         userService.getAll().catch(() => ({ data: [] })),
         templateService.getAll().catch(() => ({ data: [] })),
         logService.getAll().catch(() => ({ data: [] })),
-        axios
-          .get("/api/health")
+        systemService
+          .getHealth()
           .catch(() => ({ data: { mongodb: "disconnected" } })),
       ]);
       setUsers(Array.isArray(usersRes.data) ? usersRes.data : []);

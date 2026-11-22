@@ -1,12 +1,14 @@
 {
-  "name": "react-example",
+  "name": "instagram-crm",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx server.ts",
+    "dev": "vite",
+    "dev:server": "tsx backend/server.ts",
+    "dev:full": "tsx server.ts",
     "build": "vite build",
-    "start": "tsx server.ts",
+    "start": "tsx backend/server.ts",
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit"

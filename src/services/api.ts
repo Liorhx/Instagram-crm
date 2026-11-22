@@ -1,7 +1,14 @@
 import axios from "axios";
 
+// Automatically uses VITE_API_URL if configured for Vercel -> Render deployment.
+// Falls back to relative "/api" for local development with Vite proxy or unified server.
+const rawApiUrl = import.meta.env.VITE_API_URL || "";
+const cleanBaseUrl = rawApiUrl.replace(/\/+$/, "");
+const baseURL = cleanBaseUrl ? `${cleanBaseUrl}/api` : "/api";
+
 const api = axios.create({
-  baseURL: "/api",
+  baseURL,
+  timeout: 20000,
 });
 
 api.interceptors.request.use((config) => {
@@ -11,6 +18,10 @@ api.interceptors.request.use((config) => {
   }
   return config;
 });
+
+export const systemService = {
+  getHealth: () => api.get("/health"),
+};
 
 export const authService = {
   login: (data: any) => api.post("/auth/login", data),

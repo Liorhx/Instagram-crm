@@ -8,4 +8,6 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 backend_100kpro_old_backup/
-backend/
+backend/.env
+backend/node_modules/
+backend/dist/

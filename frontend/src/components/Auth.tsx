@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { authService } from "../services/api";
 import { toast } from "sonner";
 import {
@@ -14,11 +14,40 @@ import {
   Loader2,
   KeyRound,
   XCircle,
+  Check,
+  Shield,
+  ShieldCheck,
 } from "lucide-react";
 
 interface AuthProps {
   onLogin: (user: any) => void;
 }
+
+// RFC 5322 based email validator with valid domain and at least 2-character TLD
+const EMAIL_REGEX =
+  /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$/;
+
+const isValidEmail = (email: string): boolean => {
+  if (!email || email.length > 254) return false;
+  const trimmed = email.trim();
+  return EMAIL_REGEX.test(trimmed) && !trimmed.includes("..");
+};
+
+interface PasswordRequirements {
+  minLength: boolean;
+  hasUpper: boolean;
+  hasLower: boolean;
+  hasNumber: boolean;
+  hasSpecial: boolean;
+}
+
+const checkPasswordRequirements = (pwd: string): PasswordRequirements => ({
+  minLength: pwd.length >= 8,
+  hasUpper: /[A-Z]/.test(pwd),
+  hasLower: /[a-z]/.test(pwd),
+  hasNumber: /[0-9]/.test(pwd),
+  hasSpecial: /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?~`]/.test(pwd),
+});
 
 export default function Auth({ onLogin }: AuthProps) {
   const [loading, setLoading] = useState(false);
@@ -46,6 +75,36 @@ export default function Auth({ onLogin }: AuthProps) {
     setShowConfirmPassword(false);
   };
 
+  // Password criteria calculations
+  const pwdReqs = useMemo(
+    () => checkPasswordRequirements(formData.password),
+    [formData.password]
+  );
+
+  const pwdScore = useMemo(() => {
+    const list = [
+      pwdReqs.minLength,
+      pwdReqs.hasUpper,
+      pwdReqs.hasLower,
+      pwdReqs.hasNumber,
+      pwdReqs.hasSpecial,
+    ];
+    return list.filter(Boolean).length;
+  }, [pwdReqs]);
+
+  const isPasswordValid = pwdScore === 5;
+  const isEmailValid = useMemo(() => isValidEmail(formData.email), [formData.email]);
+  const doPasswordsMatch =
+    Boolean(formData.password) &&
+    formData.password === formData.confirmPassword;
+
+  const getStrengthLabel = () => {
+    if (!formData.password) return { text: "None", color: "text-slate-400" };
+    if (pwdScore <= 2) return { text: "Weak", color: "text-rose-500" };
+    if (pwdScore <= 4) return { text: "Medium", color: "text-amber-500" };
+    return { text: "Strong", color: "text-emerald-600" };
+  };
+
   const getFriendlyErrorMessage = (error: any, fallback: string): string => {
     if (!error.response) {
       if (
@@ -65,12 +124,12 @@ export default function Auth({ onLogin }: AuthProps) {
       return serverError;
     }
 
-    if (status === 400) return "Please check your input fields and try again.";
-    if (status === 401) return "Incorrect email or password. Please verify your credentials.";
+    if (status === 400) return "Please review input requirements and try again.";
+    if (status === 401) return "Incorrect email or password. Please verify credentials.";
     if (status === 404) return "Account not found. Please check your email or create an account.";
     if (status === 409) return "An account with this email address already exists. Please sign in.";
-    if (status === 503) return "Database unavailable. Please check that MongoDB is running locally.";
-    if (status >= 500) return "Server error occurred. Please verify backend terminal logs.";
+    if (status === 503) return "Database unavailable. Please verify MongoDB status.";
+    if (status >= 500) return "Server error occurred. Please check backend console logs.";
 
     return fallback;
   };
@@ -79,24 +138,30 @@ export default function Auth({ onLogin }: AuthProps) {
     e.preventDefault();
     clearErrors();
 
-    if (!formData.email.trim() || !formData.password) {
+    const emailTrimmed = formData.email.trim();
+    if (!emailTrimmed || !formData.password) {
       setErrorMessage("Please enter both email and password.");
+      return;
+    }
+
+    if (!isValidEmail(emailTrimmed)) {
+      setErrorMessage("Please enter a valid email address (e.g. name@company.com).");
       return;
     }
 
     try {
       setLoading(true);
       const res = await authService.login({
-        email: formData.email.trim(),
+        email: emailTrimmed,
         password: formData.password,
       });
 
       if (res.data?.token) {
         localStorage.setItem("token", res.data.token);
-        toast.success("Welcome back!");
+        toast.success("Signed in successfully!");
         onLogin(res.data.user);
       } else {
-        throw new Error("No token returned by server.");
+        throw new Error("No authorization token received.");
       }
     } catch (error: any) {
       const msg = getFriendlyErrorMessage(error, "Sign in failed. Please check credentials.");
@@ -111,33 +176,33 @@ export default function Auth({ onLogin }: AuthProps) {
     e.preventDefault();
     clearErrors();
 
-    // Client-side validations
-    if (!formData.email.trim()) {
-      setErrorMessage("Email address is required.");
+    const nameTrimmed = formData.name.trim();
+    if (!nameTrimmed || nameTrimmed.length < 2) {
+      setErrorMessage("Please enter your full name (minimum 2 characters).");
       return;
     }
 
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailPattern.test(formData.email.trim())) {
-      setErrorMessage("Please enter a valid email address (e.g. name@company.com).");
+    const emailTrimmed = formData.email.trim();
+    if (!isValidEmail(emailTrimmed)) {
+      setErrorMessage("Please enter a valid email address with a valid domain (e.g. name@company.com).");
       return;
     }
 
-    if (!formData.password || formData.password.length < 6) {
-      setErrorMessage("Password must be at least 6 characters long.");
+    if (!isPasswordValid) {
+      setErrorMessage("Password must meet all 5 security standards (8+ chars, upper, lower, number, symbol).");
       return;
     }
 
     if (formData.password !== formData.confirmPassword) {
-      setErrorMessage("Passwords do not match. Please re-enter your password.");
+      setErrorMessage("Passwords do not match. Please re-enter your confirmation password.");
       return;
     }
 
     try {
       setLoading(true);
       const res = await authService.signup({
-        name: formData.name.trim(),
-        email: formData.email.trim(),
+        name: nameTrimmed,
+        email: emailTrimmed,
         password: formData.password,
       });
 
@@ -148,11 +213,10 @@ export default function Auth({ onLogin }: AuthProps) {
         localStorage.setItem("token", res.data.token);
         onLogin(res.data.user);
       } else {
-        // Otherwise prompt to log in with pre-filled email
         switchView("login");
       }
     } catch (error: any) {
-      const msg = getFriendlyErrorMessage(error, "Account creation failed. Please check connection.");
+      const msg = getFriendlyErrorMessage(error, "Account creation failed.");
       setErrorMessage(msg);
       toast.error(msg);
     } finally {
@@ -164,14 +228,15 @@ export default function Auth({ onLogin }: AuthProps) {
     e.preventDefault();
     clearErrors();
 
-    if (!formData.email.trim()) {
-      setErrorMessage("Please enter your registered email address.");
+    const emailTrimmed = formData.email.trim();
+    if (!isValidEmail(emailTrimmed)) {
+      setErrorMessage("Please provide a valid email address.");
       return;
     }
 
     try {
       setLoading(true);
-      const res = await authService.forgotPassword(formData.email.trim());
+      const res = await authService.forgotPassword(emailTrimmed);
       toast.success(res.data?.message || "Reset token generated!");
 
       if (res.data?.token) {
@@ -196,8 +261,8 @@ export default function Auth({ onLogin }: AuthProps) {
       return;
     }
 
-    if (!formData.password || formData.password.length < 6) {
-      setErrorMessage("New password must be at least 6 characters long.");
+    if (!isPasswordValid) {
+      setErrorMessage("New password must satisfy all 5 security criteria.");
       return;
     }
 
@@ -386,6 +451,8 @@ export default function Auth({ onLogin }: AuthProps) {
                   required
                   autoComplete="name"
                   placeholder="Rahul Yadav"
+                  minLength={2}
+                  maxLength={60}
                   className="w-full h-10 pl-10 pr-3.5 rounded-lg border border-slate-300 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition"
                   value={formData.name}
                   onChange={(e) => {
@@ -397,9 +464,20 @@ export default function Auth({ onLogin }: AuthProps) {
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-slate-700 block mb-1.5">
-                Email Address
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold text-slate-700">
+                  Email Address
+                </label>
+                {formData.email && (
+                  <span
+                    className={`text-[11px] font-medium ${
+                      isEmailValid ? "text-emerald-600" : "text-amber-500"
+                    }`}
+                  >
+                    {isEmailValid ? "Valid format" : "Standard email required"}
+                  </span>
+                )}
+              </div>
               <div className="relative">
                 <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
@@ -407,7 +485,11 @@ export default function Auth({ onLogin }: AuthProps) {
                   required
                   autoComplete="email"
                   placeholder="name@company.com"
-                  className="w-full h-10 pl-10 pr-3.5 rounded-lg border border-slate-300 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition"
+                  className={`w-full h-10 pl-10 pr-3.5 rounded-lg border text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 transition ${
+                    formData.email && !isEmailValid
+                      ? "border-amber-300 focus:ring-amber-500"
+                      : "border-slate-300 focus:ring-indigo-600 focus:border-transparent"
+                  }`}
                   value={formData.email}
                   onChange={(e) => {
                     clearErrors();
@@ -415,20 +497,30 @@ export default function Auth({ onLogin }: AuthProps) {
                   }}
                 />
               </div>
+              <p className="text-[11px] text-slate-400 mt-1">
+                Must include a valid domain and TLD (e.g. user@company.com)
+              </p>
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-slate-700 block mb-1.5">
-                Password
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold text-slate-700">
+                  Password
+                </label>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-slate-400">Strength:</span>
+                  <span className={`text-[11px] font-bold ${getStrengthLabel().color}`}>
+                    {getStrengthLabel().text}
+                  </span>
+                </div>
+              </div>
               <div className="relative">
                 <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type={showPassword ? "text" : "password"}
                   required
-                  minLength={6}
                   autoComplete="new-password"
-                  placeholder="Minimum 6 characters"
+                  placeholder="Create a strong password"
                   className="w-full h-10 pl-10 pr-10 rounded-lg border border-slate-300 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition"
                   value={formData.password}
                   onChange={(e) => {
@@ -445,22 +537,130 @@ export default function Auth({ onLogin }: AuthProps) {
                   {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
                 </button>
               </div>
-              <p className="text-[11px] text-slate-400 mt-1">Must be at least 6 characters</p>
+
+              {/* Dynamic 5-bar Strength Progress */}
+              {formData.password && (
+                <div className="mt-2 space-y-2">
+                  <div className="grid grid-cols-5 gap-1.5 h-1">
+                    {[1, 2, 3, 4, 5].map((level) => (
+                      <div
+                        key={level}
+                        className={`rounded-full transition-all duration-300 ${
+                          pwdScore >= level
+                            ? pwdScore <= 2
+                              ? "bg-rose-500"
+                              : pwdScore <= 4
+                              ? "bg-amber-500"
+                              : "bg-emerald-500"
+                            : "bg-slate-200"
+                        }`}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Requirements Checklist */}
+                  <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-2.5 space-y-1.5">
+                    <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block">
+                      Security Standards Checklist
+                    </span>
+                    <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px]">
+                      <div
+                        className={`flex items-center gap-1.5 ${
+                          pwdReqs.minLength ? "text-emerald-700 font-medium" : "text-slate-500"
+                        }`}
+                      >
+                        {pwdReqs.minLength ? (
+                          <Check size={12} className="text-emerald-600 stroke-[3]" />
+                        ) : (
+                          <span className="w-1.5 h-1.5 rounded-full bg-slate-300 ml-1 mr-0.5" />
+                        )}
+                        <span>8+ characters</span>
+                      </div>
+
+                      <div
+                        className={`flex items-center gap-1.5 ${
+                          pwdReqs.hasUpper ? "text-emerald-700 font-medium" : "text-slate-500"
+                        }`}
+                      >
+                        {pwdReqs.hasUpper ? (
+                          <Check size={12} className="text-emerald-600 stroke-[3]" />
+                        ) : (
+                          <span className="w-1.5 h-1.5 rounded-full bg-slate-300 ml-1 mr-0.5" />
+                        )}
+                        <span>Uppercase (A-Z)</span>
+                      </div>
+
+                      <div
+                        className={`flex items-center gap-1.5 ${
+                          pwdReqs.hasLower ? "text-emerald-700 font-medium" : "text-slate-500"
+                        }`}
+                      >
+                        {pwdReqs.hasLower ? (
+                          <Check size={12} className="text-emerald-600 stroke-[3]" />
+                        ) : (
+                          <span className="w-1.5 h-1.5 rounded-full bg-slate-300 ml-1 mr-0.5" />
+                        )}
+                        <span>Lowercase (a-z)</span>
+                      </div>
+
+                      <div
+                        className={`flex items-center gap-1.5 ${
+                          pwdReqs.hasNumber ? "text-emerald-700 font-medium" : "text-slate-500"
+                        }`}
+                      >
+                        {pwdReqs.hasNumber ? (
+                          <Check size={12} className="text-emerald-600 stroke-[3]" />
+                        ) : (
+                          <span className="w-1.5 h-1.5 rounded-full bg-slate-300 ml-1 mr-0.5" />
+                        )}
+                        <span>Number (0-9)</span>
+                      </div>
+
+                      <div
+                        className={`flex items-center gap-1.5 col-span-2 ${
+                          pwdReqs.hasSpecial ? "text-emerald-700 font-medium" : "text-slate-500"
+                        }`}
+                      >
+                        {pwdReqs.hasSpecial ? (
+                          <Check size={12} className="text-emerald-600 stroke-[3]" />
+                        ) : (
+                          <span className="w-1.5 h-1.5 rounded-full bg-slate-300 ml-1 mr-0.5" />
+                        )}
+                        <span>Special character (!@#$%^&*...)</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-slate-700 block mb-1.5">
-                Confirm Password
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold text-slate-700">
+                  Confirm Password
+                </label>
+                {formData.confirmPassword && (
+                  <span
+                    className={`text-[11px] font-medium ${
+                      doPasswordsMatch ? "text-emerald-600" : "text-rose-500"
+                    }`}
+                  >
+                    {doPasswordsMatch ? "Passwords match" : "Does not match"}
+                  </span>
+                )}
+              </div>
               <div className="relative">
                 <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type={showConfirmPassword ? "text" : "password"}
                   required
-                  minLength={6}
                   autoComplete="new-password"
-                  placeholder="Re-type password"
-                  className="w-full h-10 pl-10 pr-10 rounded-lg border border-slate-300 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition"
+                  placeholder="Re-enter your password"
+                  className={`w-full h-10 pl-10 pr-10 rounded-lg border text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 transition ${
+                    formData.confirmPassword && !doPasswordsMatch
+                      ? "border-rose-300 focus:ring-rose-500"
+                      : "border-slate-300 focus:ring-indigo-600 focus:border-transparent"
+                  }`}
                   value={formData.confirmPassword}
                   onChange={(e) => {
                     clearErrors();
@@ -476,25 +676,22 @@ export default function Auth({ onLogin }: AuthProps) {
                   {showConfirmPassword ? <EyeOff size={15} /> : <Eye size={15} />}
                 </button>
               </div>
-              {formData.confirmPassword && formData.password !== formData.confirmPassword && (
-                <p className="text-[11px] text-rose-500 mt-1">Passwords do not match</p>
-              )}
             </div>
 
             <button
               type="submit"
-              disabled={loading}
-              className="w-full h-10 rounded-lg bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-semibold transition shadow-xs cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2 mt-2"
+              disabled={loading || !isPasswordValid || !isEmailValid || !doPasswordsMatch}
+              className="w-full h-10 rounded-lg bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-semibold transition shadow-xs cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-2"
             >
               {loading ? (
                 <>
                   <Loader2 size={15} className="animate-spin" />
-                  <span>Creating account...</span>
+                  <span>Validating & Creating...</span>
                 </>
               ) : (
                 <>
-                  <span>Create Account</span>
-                  <ArrowRight size={14} />
+                  <ShieldCheck size={14} />
+                  <span>Create Secure Account</span>
                 </>
               )}
             </button>
@@ -524,14 +721,14 @@ export default function Auth({ onLogin }: AuthProps) {
                 />
               </div>
               <p className="text-[11px] text-slate-400 mt-1">
-                We will generate a reset token and send instructions.
+                Enter your account email to receive your password reset token.
               </p>
             </div>
 
             <button
               type="submit"
-              disabled={loading}
-              className="w-full h-10 rounded-lg bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-semibold transition shadow-xs cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+              disabled={loading || !isValidEmail(formData.email)}
+              className="w-full h-10 rounded-lg bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-semibold transition shadow-xs cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>
@@ -570,7 +767,7 @@ export default function Auth({ onLogin }: AuthProps) {
                 <input
                   type="text"
                   required
-                  placeholder="Paste your reset token"
+                  placeholder="Paste your 64-character token"
                   className="w-full h-10 pl-10 pr-3.5 rounded-lg border border-slate-300 text-xs font-mono text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition"
                   value={formData.token}
                   onChange={(e) => {
@@ -582,16 +779,20 @@ export default function Auth({ onLogin }: AuthProps) {
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-slate-700 block mb-1.5">
-                New Password
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold text-slate-700">
+                  New Password
+                </label>
+                <span className={`text-[11px] font-bold ${getStrengthLabel().color}`}>
+                  {getStrengthLabel().text}
+                </span>
+              </div>
               <div className="relative">
                 <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type={showPassword ? "text" : "password"}
                   required
-                  minLength={6}
-                  placeholder="Minimum 6 characters"
+                  placeholder="At least 8 characters with symbols"
                   className="w-full h-10 pl-10 pr-10 rounded-lg border border-slate-300 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition"
                   value={formData.password}
                   onChange={(e) => {
@@ -608,20 +809,108 @@ export default function Auth({ onLogin }: AuthProps) {
                   {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
                 </button>
               </div>
+
+              {formData.password && (
+                <div className="mt-2 space-y-1.5 bg-slate-50 border border-slate-200/80 rounded-xl p-2.5">
+                  <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block">
+                    Security Requirements
+                  </span>
+                  <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px]">
+                    <div
+                      className={`flex items-center gap-1.5 ${
+                        pwdReqs.minLength ? "text-emerald-700 font-medium" : "text-slate-500"
+                      }`}
+                    >
+                      {pwdReqs.minLength ? (
+                        <Check size={12} className="text-emerald-600 stroke-[3]" />
+                      ) : (
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-300 ml-1 mr-0.5" />
+                      )}
+                      <span>8+ characters</span>
+                    </div>
+
+                    <div
+                      className={`flex items-center gap-1.5 ${
+                        pwdReqs.hasUpper ? "text-emerald-700 font-medium" : "text-slate-500"
+                      }`}
+                    >
+                      {pwdReqs.hasUpper ? (
+                        <Check size={12} className="text-emerald-600 stroke-[3]" />
+                      ) : (
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-300 ml-1 mr-0.5" />
+                      )}
+                      <span>Uppercase (A-Z)</span>
+                    </div>
+
+                    <div
+                      className={`flex items-center gap-1.5 ${
+                        pwdReqs.hasLower ? "text-emerald-700 font-medium" : "text-slate-500"
+                      }`}
+                    >
+                      {pwdReqs.hasLower ? (
+                        <Check size={12} className="text-emerald-600 stroke-[3]" />
+                      ) : (
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-300 ml-1 mr-0.5" />
+                      )}
+                      <span>Lowercase (a-z)</span>
+                    </div>
+
+                    <div
+                      className={`flex items-center gap-1.5 ${
+                        pwdReqs.hasNumber ? "text-emerald-700 font-medium" : "text-slate-500"
+                      }`}
+                    >
+                      {pwdReqs.hasNumber ? (
+                        <Check size={12} className="text-emerald-600 stroke-[3]" />
+                      ) : (
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-300 ml-1 mr-0.5" />
+                      )}
+                      <span>Number (0-9)</span>
+                    </div>
+
+                    <div
+                      className={`flex items-center gap-1.5 col-span-2 ${
+                        pwdReqs.hasSpecial ? "text-emerald-700 font-medium" : "text-slate-500"
+                      }`}
+                    >
+                      {pwdReqs.hasSpecial ? (
+                        <Check size={12} className="text-emerald-600 stroke-[3]" />
+                      ) : (
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-300 ml-1 mr-0.5" />
+                      )}
+                      <span>Special symbol (!@#$%^&*...)</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-slate-700 block mb-1.5">
-                Confirm New Password
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold text-slate-700">
+                  Confirm New Password
+                </label>
+                {formData.confirmPassword && (
+                  <span
+                    className={`text-[11px] font-medium ${
+                      doPasswordsMatch ? "text-emerald-600" : "text-rose-500"
+                    }`}
+                  >
+                    {doPasswordsMatch ? "Passwords match" : "Does not match"}
+                  </span>
+                )}
+              </div>
               <div className="relative">
                 <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type={showConfirmPassword ? "text" : "password"}
                   required
-                  minLength={6}
-                  placeholder="Re-type new password"
-                  className="w-full h-10 pl-10 pr-10 rounded-lg border border-slate-300 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition"
+                  placeholder="Re-enter new password"
+                  className={`w-full h-10 pl-10 pr-10 rounded-lg border text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 transition ${
+                    formData.confirmPassword && !doPasswordsMatch
+                      ? "border-rose-300 focus:ring-rose-500"
+                      : "border-slate-300 focus:ring-indigo-600 focus:border-transparent"
+                  }`}
                   value={formData.confirmPassword}
                   onChange={(e) => {
                     clearErrors();
@@ -637,15 +926,12 @@ export default function Auth({ onLogin }: AuthProps) {
                   {showConfirmPassword ? <EyeOff size={15} /> : <Eye size={15} />}
                 </button>
               </div>
-              {formData.confirmPassword && formData.password !== formData.confirmPassword && (
-                <p className="text-[11px] text-rose-500 mt-1">Passwords do not match</p>
-              )}
             </div>
 
             <button
               type="submit"
-              disabled={loading}
-              className="w-full h-10 rounded-lg bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-semibold transition shadow-xs cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+              disabled={loading || !isPasswordValid || !doPasswordsMatch}
+              className="w-full h-10 rounded-lg bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-semibold transition shadow-xs cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>

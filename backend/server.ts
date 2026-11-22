@@ -228,6 +228,90 @@ const authenticate = (req: any, res: any, next: any) => {
   }
 };
 
+// --- Industry Standard Email & Password Validators ---
+const EMAIL_REGEX =
+  /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$/;
+
+const validateEmail = (email: string): { valid: boolean; error?: string } => {
+  if (!email || typeof email !== "string" || !email.trim()) {
+    return { valid: false, error: "Email address is required." };
+  }
+  const trimmed = email.trim();
+  if (trimmed.length > 254) {
+    return { valid: false, error: "Email address cannot exceed 254 characters." };
+  }
+  if (trimmed.includes("..")) {
+    return { valid: false, error: "Email cannot contain consecutive periods." };
+  }
+  if (!EMAIL_REGEX.test(trimmed)) {
+    return {
+      valid: false,
+      error: "Please enter a valid email address with a valid domain (e.g. name@company.com).",
+    };
+  }
+  return { valid: true };
+};
+
+const validatePassword = (
+  password: string,
+  options?: { email?: string; name?: string }
+): { valid: boolean; error?: string } => {
+  if (!password || typeof password !== "string") {
+    return { valid: false, error: "Password is required." };
+  }
+  if (password.length < 8) {
+    return { valid: false, error: "Password must be at least 8 characters long." };
+  }
+  if (password.length > 128) {
+    return { valid: false, error: "Password cannot exceed 128 characters." };
+  }
+  if (!/[a-z]/.test(password)) {
+    return { valid: false, error: "Password must contain at least one lowercase letter (a-z)." };
+  }
+  if (!/[A-Z]/.test(password)) {
+    return { valid: false, error: "Password must contain at least one uppercase letter (A-Z)." };
+  }
+  if (!/[0-9]/.test(password)) {
+    return { valid: false, error: "Password must contain at least one digit (0-9)." };
+  }
+  if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?~`]/.test(password)) {
+    return {
+      valid: false,
+      error: "Password must contain at least one special character (e.g. !@#$%^&*).",
+    };
+  }
+
+  // Common weak password blacklist
+  const commonWeakPasswords = [
+    "password123",
+    "password1234",
+    "12345678",
+    "admin1234",
+    "qwerty1234",
+    "welcome123",
+    "instagram123",
+  ];
+  if (commonWeakPasswords.includes(password.toLowerCase())) {
+    return {
+      valid: false,
+      error: "This password is too common and easily compromised. Please choose a more secure password.",
+    };
+  }
+
+  // Disallow email username prefix inside password
+  if (options?.email) {
+    const localPart = options.email.split("@")[0].toLowerCase();
+    if (localPart.length >= 4 && password.toLowerCase().includes(localPart)) {
+      return {
+        valid: false,
+        error: "Password cannot contain your email username prefix.",
+      };
+    }
+  }
+
+  return { valid: true };
+};
+
 // Auth Routes
 app.post("/api/auth/signup", async (req, res) => {
   try {
@@ -239,17 +323,24 @@ app.post("/api/auth/signup", async (req, res) => {
 
     const { email, password, name } = req.body;
 
-    if (!email || !email.trim()) {
-      return res.status(400).json({ error: "Email address is required" });
+    // Validate Name
+    if (!name || typeof name !== "string" || !name.trim()) {
+      return res.status(400).json({ error: "Full name is required." });
+    }
+    if (name.trim().length < 2 || name.trim().length > 60) {
+      return res.status(400).json({ error: "Full name must be between 2 and 60 characters." });
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email.trim())) {
-      return res.status(400).json({ error: "Please provide a valid email address (e.g. name@company.com)" });
+    // Validate Email
+    const emailCheck = validateEmail(email);
+    if (!emailCheck.valid) {
+      return res.status(400).json({ error: emailCheck.error });
     }
 
-    if (!password || password.length < 6) {
-      return res.status(400).json({ error: "Password must be at least 6 characters long" });
+    // Validate Password
+    const passwordCheck = validatePassword(password, { email, name });
+    if (!passwordCheck.valid) {
+      return res.status(400).json({ error: passwordCheck.error });
     }
 
     const normalizedEmail = email.trim().toLowerCase();
@@ -264,7 +355,7 @@ app.post("/api/auth/signup", async (req, res) => {
     const user = new CrmUser({
       email: normalizedEmail,
       password: hashedPassword,
-      name: name?.trim() || normalizedEmail.split("@")[0],
+      name: name.trim(),
     });
     await user.save();
 
@@ -301,6 +392,11 @@ app.post("/api/auth/login", async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) {
       return res.status(400).json({ error: "Both email and password are required" });
+    }
+
+    const emailCheck = validateEmail(email);
+    if (!emailCheck.valid) {
+      return res.status(400).json({ error: emailCheck.error });
     }
 
     const normalizedEmail = email.trim().toLowerCase();
@@ -342,8 +438,9 @@ app.post("/api/auth/forgot-password", async (req, res) => {
     }
 
     const { email } = req.body;
-    if (!email) {
-      return res.status(400).json({ error: "Email address is required" });
+    const emailCheck = validateEmail(email);
+    if (!emailCheck.valid) {
+      return res.status(400).json({ error: emailCheck.error });
     }
 
     const normalizedEmail = email.trim().toLowerCase();
@@ -407,11 +504,13 @@ app.post("/api/auth/reset-password", async (req, res) => {
     }
 
     const { token, password } = req.body;
-    if (!token || !password) {
-      return res.status(400).json({ error: "Reset token and new password are required" });
+    if (!token) {
+      return res.status(400).json({ error: "Reset token is required" });
     }
-    if (password.length < 6) {
-      return res.status(400).json({ error: "Password must be at least 6 characters long" });
+
+    const passwordCheck = validatePassword(password);
+    if (!passwordCheck.valid) {
+      return res.status(400).json({ error: passwordCheck.error });
     }
 
     const hashedToken = crypto.createHash("sha256").update(token.trim()).digest("hex");

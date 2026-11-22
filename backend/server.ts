@@ -52,20 +52,35 @@ app.get("/", (req, res) => {
   });
 });
 
-// MongoDB Connection
-const MONGODB_URI =
-  process.env.MONGODB_URI || "mongodb://localhost:27017/instasmart";
-mongoose
-  .connect(MONGODB_URI)
-  .then(() => console.log("Connected to MongoDB"))
-  .catch((err) => {
-    console.error("MongoDB connection error:", err.message);
-    if (err.message.includes("MongooseServerSelectionError")) {
-      console.warn(
-        "HINT: If you are using MongoDB Atlas, ensure your IP address is whitelisted (or use 0.0.0.0/0 for testing).",
-      );
+// MongoDB Connection with automatic local fallback
+const PRIMARY_MONGODB_URI =
+  process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/instasmart";
+const LOCAL_MONGODB_URI = "mongodb://127.0.0.1:27017/instasmart";
+
+const connectToDatabase = async () => {
+  try {
+    await mongoose.connect(PRIMARY_MONGODB_URI, {
+      serverSelectionTimeoutMS: 5000,
+    });
+    console.log("Connected to MongoDB successfully");
+  } catch (err: any) {
+    console.error("Primary MongoDB connection error:", err.message);
+    if (!PRIMARY_MONGODB_URI.includes("127.0.0.1") && !PRIMARY_MONGODB_URI.includes("localhost")) {
+      console.warn("Attempting fallback to local MongoDB instance (mongodb://127.0.0.1:27017/instasmart)...");
+      try {
+        await mongoose.connect(LOCAL_MONGODB_URI, {
+          serverSelectionTimeoutMS: 3000,
+        });
+        console.log("Connected to local fallback MongoDB successfully");
+        return;
+      } catch (fallbackErr: any) {
+        console.error("Local MongoDB fallback also failed:", fallbackErr.message);
+      }
     }
-  });
+    console.warn("HINT: Ensure MongoDB is running locally or your Atlas IP whitelist is configured.");
+  }
+};
+connectToDatabase();
 
 // --- Email Transporter ---
 const transporter = nodemailer.createTransport({
@@ -216,26 +231,84 @@ const authenticate = (req: any, res: any, next: any) => {
 // Auth Routes
 app.post("/api/auth/signup", async (req, res) => {
   try {
-    const { email, password, name } = req.body;
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const user = new CrmUser({ email, password: hashedPassword, name });
-    await user.save();
-    res.status(201).json({ message: "User created successfully" });
-  } catch (err: any) {
-    if (err.code === 11000) {
-      return res.status(400).json({ error: "Email already exists" });
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({
+        error: "Database is unavailable. Please check that MongoDB is running locally or verify MONGODB_URI in backend/.env.",
+      });
     }
-    res.status(500).json({ error: "Failed to create user" });
+
+    const { email, password, name } = req.body;
+
+    if (!email || !email.trim()) {
+      return res.status(400).json({ error: "Email address is required" });
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      return res.status(400).json({ error: "Please provide a valid email address (e.g. name@company.com)" });
+    }
+
+    if (!password || password.length < 6) {
+      return res.status(400).json({ error: "Password must be at least 6 characters long" });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // Check if user already exists
+    const existingUser = await CrmUser.findOne({ email: normalizedEmail });
+    if (existingUser) {
+      return res.status(409).json({ error: "An account with this email address already exists. Please sign in." });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = new CrmUser({
+      email: normalizedEmail,
+      password: hashedPassword,
+      name: name?.trim() || normalizedEmail.split("@")[0],
+    });
+    await user.save();
+
+    const token = jwt.sign(
+      { id: user._id, email: user.email },
+      process.env.JWT_SECRET || "secret",
+      { expiresIn: "7d" },
+    );
+
+    res.status(201).json({
+      message: "Account created successfully",
+      token,
+      user: { id: user._id, email: user.email, name: user.name },
+    });
+  } catch (err: any) {
+    console.error("Signup error details:", err);
+    if (err.code === 11000) {
+      return res.status(409).json({ error: "An account with this email address already exists" });
+    }
+    res.status(500).json({
+      error: err.message || "Failed to create user account. Please check server logs.",
+    });
   }
 });
 
 app.post("/api/auth/login", async (req, res) => {
   try {
-    const { email, password } = req.body;
-    const user = await CrmUser.findOne({ email });
-    if (!user || !(await bcrypt.compare(password, user.password))) {
-      return res.status(401).json({ error: "Invalid credentials" });
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({
+        error: "Database is unavailable. Please check that MongoDB is running locally or verify MONGODB_URI in backend/.env.",
+      });
     }
+
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: "Both email and password are required" });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await CrmUser.findOne({ email: normalizedEmail });
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      return res.status(401).json({ error: "Invalid email or password. Please check your credentials." });
+    }
+
     const token = jwt.sign(
       { id: user._id, email: user.email },
       process.env.JWT_SECRET || "secret",
@@ -245,8 +318,9 @@ app.post("/api/auth/login", async (req, res) => {
       token,
       user: { id: user._id, email: user.email, name: user.name },
     });
-  } catch (err) {
-    res.status(500).json({ error: "Login failed" });
+  } catch (err: any) {
+    console.error("Login error details:", err);
+    res.status(500).json({ error: err.message || "Login failed. Please check server logs." });
   }
 });
 
@@ -261,11 +335,21 @@ app.get("/api/auth/me", authenticate, async (req: any, res) => {
 
 app.post("/api/auth/forgot-password", async (req, res) => {
   try {
-    const { email } = req.body;
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({
+        error: "Database is unavailable. Please verify MongoDB status.",
+      });
+    }
 
-    const user = await CrmUser.findOne({ email });
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: "Email address is required" });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await CrmUser.findOne({ email: normalizedEmail });
     if (!user) {
-      return res.status(404).json({ error: "User not found" });
+      return res.status(404).json({ error: "No account found with this email address" });
     }
 
     // Generate token
@@ -278,66 +362,78 @@ app.post("/api/auth/forgot-password", async (req, res) => {
     user.resetPasswordExpires = new Date(Date.now() + 3600000); // 1 hour
     await user.save();
 
-    // Reset URL (FRONTEND URL)
-
     // Email content
     const mailOptions = {
       from: process.env.SMTP_FROM,
       to: email,
       subject: "Password Reset Request",
       html: `
-        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e4e4e7; rounded: 12px;">
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e4e4e7; border-radius: 12px;">
           <h2 style="color: #4f46e5; margin-bottom: 20px;">Password Reset Request</h2>
           <p>Hello,</p>
-          <p>You requested a password reset for your InstaSmart CRM account. Please use the token below to reset your password:</p>
+          <p>You requested a password reset for your InstaCRM account. Please use the token below to reset your password:</p>
           <div style="background: #f4f4f5; padding: 15px; border-radius: 8px; text-align: center; margin: 20px 0;">
             <span style="font-family: monospace; font-size: 24px; font-weight: bold; letter-spacing: 2px; color: #18181b;">${token}</span>
           </div>
           <p>This token will expire in 1 hour.</p>
           <p>If you did not request this, please ignore this email.</p>
           <hr style="border: 0; border-top: 1px solid #e4e4e7; margin: 20px 0;" />
-          <p style="font-size: 12px; color: #71717a;">InstaSmart CRM - Your Instagram Lead Management Partner</p>
+          <p style="font-size: 12px; color: #71717a;">InstaCRM - Lead Management Partner</p>
         </div>
       `,
     };
     try {
       await transporter.sendMail(mailOptions);
+      return res.json({ message: "Password reset token sent to your email" });
     } catch (err) {
       console.error("MAIL ERROR:", err);
-
       return res.json({
-        message: "Token generated (email failed)",
+        message: "Token generated (email dispatch failed, using local token)",
         token,
       });
     }
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Something went wrong" });
+  } catch (err: any) {
+    console.error("Forgot password error:", err);
+    res.status(500).json({ error: err.message || "Failed to process forgot password request" });
   }
 });
 
 app.post("/api/auth/reset-password", async (req, res) => {
   try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({
+        error: "Database is unavailable. Please verify MongoDB status.",
+      });
+    }
+
     const { token, password } = req.body;
-    // Hash incoming token (same as saved)
-    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+    if (!token || !password) {
+      return res.status(400).json({ error: "Reset token and new password are required" });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ error: "Password must be at least 6 characters long" });
+    }
+
+    const hashedToken = crypto.createHash("sha256").update(token.trim()).digest("hex");
 
     const user = await CrmUser.findOne({
       resetPasswordToken: hashedToken,
       resetPasswordExpires: { $gt: Date.now() },
     });
 
-    if (!user)
-      return res.status(400).json({ error: "Invalid or expired token" });
+    if (!user) {
+      return res.status(400).json({ error: "Invalid or expired reset token" });
+    }
 
     user.password = await bcrypt.hash(password, 10);
     user.resetPasswordToken = undefined;
     user.resetPasswordExpires = undefined;
     await user.save();
 
-    res.json({ message: "Password reset successful" });
-  } catch (err) {
-    res.status(500).json({ error: "Failed to reset password" });
+    res.json({ message: "Password reset successfully. You can now sign in with your new password." });
+  } catch (err: any) {
+    console.error("Reset password error:", err);
+    res.status(500).json({ error: err.message || "Failed to reset password" });
   }
 });
 

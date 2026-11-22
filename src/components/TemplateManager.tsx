@@ -1,10 +1,5 @@
 import React, { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, MessageSquare, Trash2, Tag, Copy, Check } from "lucide-react";
+import { Plus, MessageSquare, Trash2, Tag, Copy, Check, Instagram, Sparkles, Send } from "lucide-react";
 import { templateService } from "../services/api";
 import { toast } from "sonner";
 
@@ -16,27 +11,29 @@ export default function TemplateManager({
   onRefresh: () => void;
 }) {
   const [name, setName] = useState("");
-  const [type, setType] = useState<"gender" | "profession" | "follow-up">("profession");
+  const [type, setType] = useState<"profession" | "gender" | "follow-up">("profession");
   const [category, setCategory] = useState("");
   const [content, setContent] = useState("");
   const [saving, setSaving] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [previewLeadName, setPreviewLeadName] = useState("Alex");
+  const [previewHandle, setPreviewHandle] = useState("alex_design");
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !content.trim()) {
-      toast.error("Please fill in template name and content");
+      toast.error("Template name and message body are required");
       return;
     }
     try {
       setSaving(true);
       await templateService.create({
-        name,
+        name: name.trim(),
         type,
-        category: category || "general",
-        content,
+        category: category.trim() || "general",
+        content: content.trim(),
       });
-      toast.success("Template created successfully");
+      toast.success("Outreach template saved");
       setName("");
       setCategory("");
       setContent("");
@@ -52,34 +49,45 @@ export default function TemplateManager({
     navigator.clipboard.writeText(text);
     setCopiedId(id);
     toast.success("Copied to clipboard");
-    setTimeout(() => setCopiedId(null), 2000);
+    setTimeout(() => setCopiedId(null), 1800);
   };
 
-  const insertVariable = (variable: string) => {
-    setContent((prev) => `${prev} {${variable}} `);
+  const insertPlaceholder = (tag: string) => {
+    setContent((prev) => `${prev}{${tag}} `);
   };
+
+  // Live preview string
+  const previewText = content
+    ? content
+        .replace(/{name}/g, previewLeadName)
+        .replace(/{username}/g, previewHandle)
+        .replace(/{profession}/g, category || "designer")
+    : "Your formatted message will render here in real time as an Instagram DM bubble...";
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* Create Template */}
-      <Card className="lg:col-span-1 border-zinc-200">
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Plus size={18} className="text-indigo-600" />
-            Create Template
-          </CardTitle>
-          <CardDescription>
-            Craft reusable Instagram outreach messages with dynamic variable placeholders.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      {/* Left: Template Creator & Preview Studio */}
+      <div className="lg:col-span-5 space-y-4">
+        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs">
+          <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
+            <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <Plus size={16} strokeWidth={2.5} />
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-900 text-sm">New Outreach Template</h3>
+              <p className="text-[11px] text-slate-400">Save templates for quick 1-click DM outreach</p>
+            </div>
+          </div>
+
           <form onSubmit={handleCreate} className="space-y-4">
             <div>
-              <label className="text-xs font-semibold text-zinc-600 block mb-1">
+              <label className="text-xs font-semibold text-slate-700 block mb-1">
                 Template Name
               </label>
-              <Input
-                placeholder="e.g. Initial Outreach - Dentists"
+              <input
+                type="text"
+                placeholder="e.g. Initial Dentist Intro"
+                className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50/50"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
@@ -88,26 +96,28 @@ export default function TemplateManager({
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-semibold text-zinc-600 block mb-1">
+                <label className="text-xs font-semibold text-slate-700 block mb-1">
                   Type
                 </label>
                 <select
                   value={type}
                   onChange={(e: any) => setType(e.target.value)}
-                  className="w-full h-9 rounded-md border border-zinc-200 bg-white px-2 text-sm text-zinc-800"
+                  className="w-full h-9 rounded-lg border border-slate-200 text-xs px-2.5 bg-slate-50/50 text-slate-700"
                 >
                   <option value="profession">Profession</option>
-                  <option value="gender">Gender</option>
                   <option value="follow-up">Follow-Up</option>
+                  <option value="gender">Gender</option>
                 </select>
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-zinc-600 block mb-1">
-                  Category
+                <label className="text-xs font-semibold text-slate-700 block mb-1">
+                  Category / Tag
                 </label>
-                <Input
-                  placeholder="e.g. dentist, 1st follow-up"
+                <input
+                  type="text"
+                  placeholder="e.g. dentist, 1st-followup"
+                  className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50/50"
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                 />
@@ -115,29 +125,30 @@ export default function TemplateManager({
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-semibold text-zinc-600">
-                  Message Content
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold text-slate-700">
+                  Message Body
                 </label>
-                <div className="flex gap-1 text-[11px]">
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] text-slate-400 mr-1">Insert:</span>
                   <button
                     type="button"
-                    onClick={() => insertVariable("name")}
-                    className="px-1.5 py-0.5 bg-zinc-100 hover:bg-zinc-200 rounded text-zinc-700"
+                    onClick={() => insertPlaceholder("name")}
+                    className="px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors cursor-pointer"
                   >
                     +name
                   </button>
                   <button
                     type="button"
-                    onClick={() => insertVariable("username")}
-                    className="px-1.5 py-0.5 bg-zinc-100 hover:bg-zinc-200 rounded text-zinc-700"
+                    onClick={() => insertPlaceholder("username")}
+                    className="px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors cursor-pointer"
                   >
                     +username
                   </button>
                   <button
                     type="button"
-                    onClick={() => insertVariable("profession")}
-                    className="px-1.5 py-0.5 bg-zinc-100 hover:bg-zinc-200 rounded text-zinc-700"
+                    onClick={() => insertPlaceholder("profession")}
+                    className="px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors cursor-pointer"
                   >
                     +profession
                   </button>
@@ -145,84 +156,113 @@ export default function TemplateManager({
               </div>
               <textarea
                 rows={5}
-                className="w-full rounded-md border border-zinc-200 bg-white p-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-600"
-                placeholder="Hi {name}, I saw your profile @{username} and wanted to reach out regarding..."
+                placeholder="Hi {name}! Loved your recent posts on Instagram. Reaching out because..."
+                className="w-full p-3 rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50/50 leading-relaxed font-sans"
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 required
               />
             </div>
 
-            <Button
+            <button
               type="submit"
               disabled={saving}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
+              className="w-full py-2.5 px-4 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors shadow-xs cursor-pointer disabled:opacity-50"
             >
-              {saving ? "Creating..." : "Save Template"}
-            </Button>
+              {saving ? "Saving..." : "Save Template"}
+            </button>
           </form>
-        </CardContent>
-      </Card>
+        </div>
 
-      {/* Templates List */}
-      <Card className="lg:col-span-2 border-zinc-200">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <MessageSquare size={18} className="text-indigo-600" />
-                Saved Templates ({templates.length})
-              </CardTitle>
-              <CardDescription>
-                Manage outreach and follow-up templates used for direct messaging.
-              </CardDescription>
+        {/* Live Instagram DM Simulator */}
+        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
+            <div className="flex items-center gap-2">
+              <Instagram size={16} className="text-pink-600" />
+              <span className="text-xs font-bold text-slate-900">Instagram DM Simulator</span>
+            </div>
+            <span className="text-[10px] text-slate-400 font-mono">Live Preview</span>
+          </div>
+
+          <div className="bg-slate-900 rounded-2xl p-4 text-white space-y-3">
+            <div className="flex items-center gap-2 pb-2 border-b border-slate-800 text-[11px] text-slate-400 font-medium">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+              <span>To: @{previewHandle} ({previewLeadName})</span>
+            </div>
+
+            <div className="py-2 flex justify-end">
+              <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-xs p-3.5 rounded-2xl rounded-br-xs max-w-xs shadow-md whitespace-pre-wrap leading-relaxed">
+                {previewText}
+              </div>
             </div>
           </div>
-        </CardHeader>
-        <CardContent>
+        </div>
+      </div>
+
+      {/* Right: Existing Templates List */}
+      <div className="lg:col-span-7">
+        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+            <div>
+              <h3 className="font-bold text-slate-900 text-sm">Saved Templates ({templates.length})</h3>
+              <p className="text-[11px] text-slate-400">Library of approved outreach and follow-up messages</p>
+            </div>
+          </div>
+
           {templates.length === 0 ? (
-            <div className="text-center py-12 text-zinc-500">
-              <MessageSquare size={36} className="mx-auto mb-2 text-zinc-300" />
-              <p className="font-medium">No templates created yet</p>
-              <p className="text-xs">Create your first template using the form on the left.</p>
+            <div className="text-center py-16 text-slate-400">
+              <MessageSquare size={36} className="mx-auto mb-2 text-slate-300" />
+              <p className="font-semibold text-slate-700 text-sm">No templates saved</p>
+              <p className="text-xs mt-0.5">Create your first outreach template using the form on the left.</p>
             </div>
           ) : (
             <div className="space-y-3">
               {templates.map((tpl) => (
                 <div
                   key={tpl._id}
-                  className="p-4 rounded-lg border border-zinc-100 hover:border-zinc-200 bg-white transition-all shadow-xs"
+                  className="p-4 rounded-xl border border-slate-200/80 bg-white hover:border-slate-300 transition-all shadow-2xs group"
                 >
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <h4 className="font-semibold text-zinc-900 text-sm">{tpl.name}</h4>
-                      <Badge variant="secondary" className="text-[10px] capitalize">
+                      <span className="font-bold text-xs text-slate-900">{tpl.name}</span>
+                      <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
                         {tpl.type}
-                      </Badge>
+                      </span>
                       {tpl.category && (
-                        <span className="text-[11px] text-zinc-500 bg-zinc-50 border px-1.5 py-0.5 rounded flex items-center gap-1">
-                          <Tag size={10} />
-                          {tpl.category}
+                        <span className="text-[10px] text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-100 font-mono">
+                          #{tpl.category}
                         </span>
                       )}
                     </div>
+
                     <button
                       onClick={() => copyToClipboard(tpl.content, tpl._id)}
-                      className="p-1 hover:bg-zinc-100 rounded text-zinc-500 transition-colors"
-                      title="Copy content"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
+                      title="Copy template"
                     >
-                      {copiedId === tpl._id ? <Check size={14} className="text-green-600" /> : <Copy size={14} />}
+                      {copiedId === tpl._id ? (
+                        <>
+                          <Check size={12} className="text-emerald-600" />
+                          <span className="text-emerald-700">Copied</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={12} />
+                          <span>Copy</span>
+                        </>
+                      )}
                     </button>
                   </div>
-                  <p className="text-xs text-zinc-700 bg-zinc-50/70 p-2.5 rounded border border-zinc-100 font-mono whitespace-pre-wrap">
+
+                  <p className="text-xs text-slate-700 bg-slate-50 p-3 rounded-lg border border-slate-100 font-mono whitespace-pre-wrap leading-relaxed">
                     {tpl.content}
                   </p>
                 </div>
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

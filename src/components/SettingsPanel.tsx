@@ -1,8 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Settings, Save, ShieldCheck, Mail, Instagram } from "lucide-react";
+import { Settings, Save, ShieldCheck, Instagram, Clock, Sliders, Check } from "lucide-react";
 import { settingsService } from "../services/api";
 import { toast } from "sonner";
 
@@ -41,7 +38,7 @@ export default function SettingsPanel() {
     try {
       setSaving(true);
       await settingsService.update(settings);
-      toast.success("Settings updated successfully");
+      toast.success("Settings saved successfully");
     } catch (err: any) {
       toast.error(err.response?.data?.error || "Failed to update settings");
     } finally {
@@ -50,145 +47,147 @@ export default function SettingsPanel() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      <Card className="border-zinc-200">
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Settings size={18} className="text-indigo-600" />
-            CRM Automation & Safety Settings
-          </CardTitle>
-          <CardDescription>
-            Configure message throttling, follow-up cadences, and rate-limit guardrails.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSave} className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-semibold text-zinc-700 block mb-1">
-                  Message Dispatch Delay (seconds)
-                </label>
-                <Input
-                  type="number"
-                  min={5}
-                  max={300}
-                  value={settings.messageDelay}
-                  onChange={(e) =>
-                    setSettings({ ...settings, messageDelay: parseInt(e.target.value) || 30 })
-                  }
-                />
-                <p className="text-[11px] text-zinc-500 mt-1">
-                  Delay between consecutive messages to avoid account action blocks.
-                </p>
-              </div>
+    <div className="max-w-2xl mx-auto space-y-6">
+      <form onSubmit={handleSave} className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-6">
+        <div className="flex items-center gap-2 pb-4 border-b border-slate-100">
+          <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+            <Sliders size={18} strokeWidth={2.2} />
+          </div>
+          <div>
+            <h3 className="font-bold text-slate-900 text-sm">Pipeline Cadence & Rate Limits</h3>
+            <p className="text-[11px] text-slate-400">Configure automated follow-up scheduling and Instagram safety throttling</p>
+          </div>
+        </div>
 
-              <div>
-                <label className="text-xs font-semibold text-zinc-700 block mb-1">
-                  Follow-Up Interval (days)
-                </label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={30}
-                  value={settings.followUpInterval}
-                  onChange={(e) =>
-                    setSettings({ ...settings, followUpInterval: parseInt(e.target.value) || 2 })
-                  }
-                />
-                <p className="text-[11px] text-zinc-500 mt-1">
-                  Default schedule for next due follow-up date calculation.
-                </p>
-              </div>
+        {/* Section 1: Connected Account */}
+        <div className="space-y-3">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            Instagram Profile
+          </h4>
+          <div>
+            <label className="text-xs font-semibold text-slate-700 block mb-1">
+              Your Instagram Handle
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-mono">@</span>
+              <input
+                type="text"
+                placeholder="your_handle"
+                className="w-full h-9 pl-7 pr-3 rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50/50"
+                value={settings.instagramUsername || ""}
+                onChange={(e) =>
+                  setSettings({ ...settings, instagramUsername: e.target.value.replace(/^@/, "") })
+                }
+              />
             </div>
+            <p className="text-[11px] text-slate-400 mt-1">
+              Used to identify the sender when creating outreach messages.
+            </p>
+          </div>
+        </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-semibold text-zinc-700 block mb-1">
-                  Max Follow-Ups Per Lead
-                </label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={10}
-                  value={settings.maxFollowUps}
-                  onChange={(e) =>
-                    setSettings({ ...settings, maxFollowUps: parseInt(e.target.value) || 4 })
-                  }
-                />
-                <p className="text-[11px] text-zinc-500 mt-1">
-                  Ceiling limit before a lead is automatically marked complete or closed.
-                </p>
-              </div>
+        {/* Section 2: Outreach Cadence */}
+        <div className="space-y-4 pt-4 border-t border-slate-100">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            Follow-Up Rules
+          </h4>
 
-              <div>
-                <label className="text-xs font-semibold text-zinc-700 block mb-1">
-                  Connected Instagram Account
-                </label>
-                <div className="relative">
-                  <Instagram size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
-                  <Input
-                    placeholder="e.g. your_instagram_handle"
-                    className="pl-8"
-                    value={settings.instagramUsername || ""}
-                    onChange={(e) =>
-                      setSettings({ ...settings, instagramUsername: e.target.value })
-                    }
-                  />
-                </div>
-                <p className="text-[11px] text-zinc-500 mt-1">
-                  Username used for identification and outreach templates.
-                </p>
-              </div>
-            </div>
-
-            <div className="border-t border-zinc-100 pt-4 space-y-3">
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={settings.safeMode}
-                  onChange={(e) => setSettings({ ...settings, safeMode: e.target.checked })}
-                  className="rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
-                />
-                <div>
-                  <span className="text-sm font-semibold text-zinc-900 flex items-center gap-1.5">
-                    <ShieldCheck size={14} className="text-emerald-600" />
-                    Enable Safe Mode Rate-Limiting
-                  </span>
-                  <p className="text-xs text-zinc-500">
-                    Automatically enforces strict delays and pauses bulk campaigns if rate warnings trigger.
-                  </p>
-                </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-semibold text-slate-700 block mb-1">
+                Follow-up Interval (Days)
               </label>
-
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={settings.autoAnalyze}
-                  onChange={(e) => setSettings({ ...settings, autoAnalyze: e.target.checked })}
-                  className="rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
-                />
-                <div>
-                  <span className="text-sm font-semibold text-zinc-900">
-                    AI Automated Lead Categorization
-                  </span>
-                  <p className="text-xs text-zinc-500">
-                    Uses Google Gemini AI to infer gender and profession from bios on import.
-                  </p>
-                </div>
-              </label>
+              <input
+                type="number"
+                min={1}
+                max={30}
+                className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50/50"
+                value={settings.followUpInterval}
+                onChange={(e) =>
+                  setSettings({ ...settings, followUpInterval: parseInt(e.target.value) || 2 })
+                }
+              />
+              <p className="text-[11px] text-slate-400 mt-1">
+                Days to wait before scheduling the next follow-up.
+              </p>
             </div>
 
-            <Button
-              type="submit"
-              disabled={saving || loading}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center gap-2"
-            >
-              <Save size={16} />
-              {saving ? "Saving Settings..." : "Save Settings"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+            <div>
+              <label className="text-xs font-semibold text-slate-700 block mb-1">
+                Max Follow-ups per Lead
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={10}
+                className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50/50"
+                value={settings.maxFollowUps}
+                onChange={(e) =>
+                  setSettings({ ...settings, maxFollowUps: parseInt(e.target.value) || 4 })
+                }
+              />
+              <p className="text-[11px] text-slate-400 mt-1">
+                Outreach halts after reaching this limit.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Section 3: Safety Throttling */}
+        <div className="space-y-4 pt-4 border-t border-slate-100">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            Safety & Guardrails
+          </h4>
+
+          <div>
+            <label className="text-xs font-semibold text-slate-700 block mb-1">
+              Dispatch Delay (Seconds)
+            </label>
+            <input
+              type="number"
+              min={10}
+              max={300}
+              className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50/50"
+              value={settings.messageDelay}
+              onChange={(e) =>
+                setSettings({ ...settings, messageDelay: parseInt(e.target.value) || 30 })
+              }
+            />
+            <p className="text-[11px] text-slate-400 mt-1">
+              Minimum buffer between consecutive actions to prevent Instagram rate-limits.
+            </p>
+          </div>
+
+          <label className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200/80 cursor-pointer hover:bg-slate-100/70 transition-colors">
+            <input
+              type="checkbox"
+              checked={settings.safeMode}
+              onChange={(e) => setSettings({ ...settings, safeMode: e.target.checked })}
+              className="rounded border-slate-300 text-indigo-600 h-4 w-4 mt-0.5 cursor-pointer"
+            />
+            <div>
+              <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                <ShieldCheck size={14} className="text-emerald-600" />
+                Anti-Spam Safe Mode
+              </span>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Automatically throttles bulk actions and warns when outreach velocity exceeds safe limits.
+              </p>
+            </div>
+          </label>
+        </div>
+
+        <div className="pt-2">
+          <button
+            type="submit"
+            disabled={saving || loading}
+            className="w-full py-2.5 px-4 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors shadow-xs cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
+          >
+            <Save size={14} />
+            <span>{saving ? "Saving Changes..." : "Save Settings"}</span>
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
